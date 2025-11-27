@@ -1,0 +1,9 @@
+/env/**
+/env
+/.idea/**
+/.idea
+__pycache__
+/pretrained_models/**
+/pretrained_models
+/wav2vec2_checkpoints/**
+/wav2vec2_checkpoints/
