@@ -7,6 +7,7 @@ and slightly adapted to suit my needs.
 import librosa
 import torch
 import numpy as np
+from lortools.sort.sort_tools import SortTools
 
 
 class Speech2Emo:
@@ -38,7 +39,7 @@ class Speech2Emo:
     @classmethod
     def predict_emotion(cls, audio_path,
                         start_time, duration,
-                        model, feature_extractor, id2label, max_duration=30.0):
+                        model, feature_extractor, labels, max_duration=30.0):
         inputs = cls.preprocess_audio(audio_path=audio_path,
                                       start_time=start_time, duration=duration,
                                       feature_extractor=feature_extractor,
@@ -51,8 +52,7 @@ class Speech2Emo:
         with torch.no_grad():
             outputs = model(**inputs)
 
-        logits = outputs.logits
-        predicted_id = torch.argmax(logits, dim=-1).item()
-        predicted_label = id2label[predicted_id]
+        probs = torch.softmax(outputs.logits[0], dim=0).cpu().numpy()
+        scores, emos = SortTools.sort_together(probs, labels, b_desc=True)
 
-        return predicted_label
+        return emos, scores

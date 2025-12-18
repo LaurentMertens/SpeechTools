@@ -5,7 +5,7 @@ See https://github.com/ddlBoJack/emotion2vec?tab=readme-ov-file#inference-with-c
 .. codeauthor:: Laurent Mertens <laurent.mertens@kuleuven.be>
 """
 import librosa
-import numpy as np
+from lortools.sort.sort_tools import SortTools
 
 
 class Emo2Vec:
@@ -49,18 +49,13 @@ class Emo2Vec:
         # )
 
         rec_result = model.generate(audio_array, output_dir="./outputs", granularity="utterance", extract_embedding=False)
-        max_emo = cls.extract_max_emo(rec_result=rec_result[0])
+        emos, scores = cls.sort_emo_preds(rec_result=rec_result[0])
 
-        return max_emo
+        return emos, scores
 
     @classmethod
-    def extract_max_emo(cls, rec_result):
-        scores = rec_result['scores']
-        idx_max = np.argmax(np.asarray(scores))
-        max_emo = rec_result['labels'][idx_max]
-        if idx_max < 8:
-            max_emo = max_emo.split('/')[1]
+    def sort_emo_preds(cls, rec_result):
+        labels = [s.split('/')[1] if '/' in s else s for s in rec_result['labels']]
+        scores, emos = SortTools.sort_together(rec_result['scores'], labels, b_desc=True)
 
-
-        return max_emo
-
+        return emos, scores

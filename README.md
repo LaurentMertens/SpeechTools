@@ -6,23 +6,44 @@ Have a look at the bottom part of ```speech_transcription/processor.py``` for ex
 
 Essentially, if you want to process a single file, use:
 ```python
-Processor.process_file(file=path_to_file,
+Processor.process_file(file=_file_nl,
+                       b_print_all_emos=True,
+                       b_print_emo_probs=True,
+                       window_size=60,
+                       window_stride=20,
                        emo_classifier=EmoClassifier.EMO2VEC,
-                       language=Language.CN)
+                       language=Language.NL)
 ```
 
 To process an entire folder (in this case of mp3 files):
 ```python
 Processor.process_folder(folder=path_to_folder,
                          file_ext='mp3',
+                         b_print_all_emos=True,
+                         b_print_emo_probs=True,
+                         window_size=60,
+                         window_stride=20,
+                         emo_classifier=EmoClassifier.EMO2VEC,
                          language=Language.NL)
 ```
 
-For each processed file, a 3 new files will be generate. Assuming file ```dummy.mp3``` is processed, the following
+Each processed file will first be split into segments, with each segment representing a continuous passage spoken by a
+same speaker, as determined by Whisper. To be more precise, a slightly customized version of the ```whisper-diarization```
+repository is used. For the original, see [https://github.com/MahmoudAshraf97/whisper-diarization](https://github.com/MahmoudAshraf97/whisper-diarization).
+
+Then, each segment will be processed by applying a sliding window approach. The parameter ```window_size``` represents
+the size of the window in seconds, ```window_stride``` means the window will jump forward by this many seconds each time.
+E.g., if the segment is 74s long, ```window_size```=60 and ```window_stride```=20 (the default values), then first the
+timeframe from 0s to 60s will be processed, followed by the timeframe from 20s to 74s. Note that if the timeframe duration
+is less than 1/5th of the ```window_size```, the timeframe will not be processed. E.g., assuming a 25s segment and the same
+default ```window_size``` and ```window_stride``` values, the timeframe from 20s to 25s will not processed, as 5s is
+less than 1/5th of the 60s ```window_size```.
+
+For each processed file, 3 new files will be generate. Assuming file ```dummy.mp3``` is processed, the following
 new files will be created:
 * ```dummy.srt```: contains a line-by-line transcription of the audio, with timestamps and speaker id.
 * ```dummy.txt```: contains a full text transcription, with text grouped per segment (i.e., continuous speech by same speaker), with speaker id.
-* ```dummy_emo.txt```: contains a segment-by-segment transcription of the audio + predicted emotion per segment.
+* ```dummy_emo.txt```: contains a segment-by-segment transcription of the audio + predicted emotion(s) per segment.
 
 ### Languages
 You can specify one of two languages:

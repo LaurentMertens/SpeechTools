@@ -1,3 +1,4 @@
+lortools
 # whisper-diarization
 nemo_toolkit[asr]>=2.3.0
 nltk

@@ -29,12 +29,23 @@ class Processor:
     DUMMY_DATE = '01/01/2025'  # We use a dummy date to make computing the difference between the timestamps easier
 
     @classmethod
-    def process_folder(cls, folder: str, file_ext='mp3', language=Language.NL):
+    def process_folder(cls, folder: str, file_ext='mp3',
+                       b_print_all_emos=True,
+                       b_print_emo_probs=True,
+                       window_size=60,
+                       window_stride=20,
+                       emo_classifier=EmoClassifier.SPEECH2EMO,
+                       language=Language.NL):
         """
 
         :param folder: folder to be processed
         :param file_ext: audio file extension to look for
-        :param language: language used to conduct the interviews
+        :param b_print_all_emos: print all emotions (True) or just top predicted emotion (False)? Emotions are printed in descending order of score; emotion with highest assigned probability first
+        :param b_print_emo_probs: print probabilities for each emotion label?
+        :param window_size: size in seconds of the sliding window, i.e., size of the segment patches to processed
+        :param window_stride: size in seconds of the step by which to move the sliding window
+        :param emo_classifier: which emotion classifier to use
+        :param language: target language, i.e., language spoken in the interviews
         :return:
         """
         if not os.path.isdir(folder):
@@ -54,7 +65,13 @@ class Processor:
         for idx_f, f in enumerate(sorted(files)):
             print(f"At file {idx_f+1}/{nb_files}: [{f}]")
             try:
-                cls.process_file(f, language=language)
+                cls.process_file(file=f,
+                                 b_print_emo_probs=b_print_emo_probs,
+                                 b_print_all_emos=b_print_all_emos,
+                                 window_size=window_size,
+                                 window_stride=window_stride,
+                                 emo_classifier=emo_classifier,
+                                 language=language)
                 file_ok.append(f)
             except Exception as e:
                 print(f"Something went wrong in processing of file [{f}].\n{e}")
@@ -66,11 +83,22 @@ class Processor:
                 print(f)
 
     @classmethod
-    def process_file(cls, file: str, emo_classifier=EmoClassifier.SPEECH2EMO,
+    def process_file(cls, file: str,
+                     b_print_all_emos=True,
+                     b_print_emo_probs=True,
+                     window_size=60,
+                     window_stride=20,
+                     emo_classifier=EmoClassifier.SPEECH2EMO,
                      language=Language.NL):
         """
 
         :param file: path to audio file to be processed
+        :param b_print_all_emos: print all emotions (True) or just top predicted emotion (False)? Emotions are printed in descending order of score; emotion with highest assigned probability first
+        :param b_print_emo_probs: print probabilities for each emotion label?
+        :param window_size: size in seconds of the sliding window, i.e., size of the segment patches to processed
+        :param window_stride: size in seconds of the step by which to move the sliding window
+        :param emo_classifier: which emotion classifier to use
+        :param language: target language, i.e., language spoken in the interviews
         :return:
         """
         srt_file = os.path.splitext(file)[0] + '.srt'
@@ -90,7 +118,7 @@ class Processor:
             model = AutoModelForAudioClassification.from_pretrained(model_id)
 
             feature_extractor = AutoFeatureExtractor.from_pretrained(model_id, do_normalize=True)
-            id2label = model.config.id2label
+            labels = [model.config.id2label[x] for x in range(len(model.config.id2label))]
         elif emo_classifier == EmoClassifier.EMO2VEC:
             model_id = "iic/emotion2vec_plus_large"
             model = AutoModel(
@@ -105,42 +133,79 @@ class Processor:
         print("Processing segments...")
         out_text = ''
         for idx_s, s in enumerate(segments):
+            print(f"Segment {idx_s}...")
+            print(f'"{s['text']}"')
             start_time = datetime.strptime(f'{cls.DUMMY_DATE} {s['start']}', '%d/%m/%Y %H:%M:%S,%f')
             end_time = datetime.strptime(f'{cls.DUMMY_DATE} {s['end']}', '%d/%m/%Y %H:%M:%S,%f')
-            duration = end_time - start_time
-            duration_s = duration.seconds + float(f'0.{duration.microseconds}')
-            if duration_s > 60:  # Cap maximum segment length at 60s
-                duration_s = 60
-            start_time_s = 60*start_time.minute + start_time.second + float(f'0.{start_time.microsecond}')
+            # duration = end_time - start_time
+            # duration_s = duration.seconds + float(f'0.{duration.microseconds}')
+            # # if duration_s > 60:  # Cap maximum segment length at 60s
+            # #     duration_s = 60
 
-            if emo_classifier == EmoClassifier.SPEECH2EMO:
-                seg_emo = Speech2Emo.predict_emotion(
-                    audio_path=file,
-                    start_time=start_time_s,
-                    duration=duration_s,
-                    model=model,
-                    feature_extractor=feature_extractor,
-                    id2label=id2label
-                )
-            elif emo_classifier == EmoClassifier.EMO2VEC:
-                seg_emo = Emo2Vec.process_file(audio_path=file,
-                                               start_time=start_time_s,
-                                               duration=duration_s,
-                                               model=model)
-            else:
-                raise ValueError(f"Invalid option for emo_classifier: {emo_classifier}")
-
-            print(f'start_time: {start_time}, duration: {duration_s}, ins: {start_time_s}')
-            print(f'"{s['text']}"')
-            print(seg_emo)
-            print()
+            start_time_s = 60 * start_time.minute + start_time.second + float(f'0.{start_time.microsecond:06d}')
+            end_time_s = 60 * end_time.minute + end_time.second + float(f'0.{end_time.microsecond:06d}')
 
             if idx_s > 0:
                 out_text += '\n'
-            out_text += f'Speaker {s['speaker']}\n'
+            out_text += '='*90 + '\n'
+            out_text += f'Segment  : {idx_s}\n'
+            out_text += f'Speaker  : {s['speaker']}\n'
             out_text += f'Timeframe: {s['start']} -- {s['end']}\n'
-            out_text += f'Text: {s['text']}\n'
-            out_text += f'Emotion: {seg_emo}\n'
+            out_text += f'Text     : {s['text']}\n'
+
+            at_patch = -1
+            while True:
+                at_patch += 1
+
+                patch_start_time = start_time_s + (at_patch * window_stride)
+                # Break out of loop if the start time of this patch is less than one fifth of the window size distance
+                # from the end of the segment
+                # Does not apply to the first patch
+                if at_patch > 0 and patch_start_time - end_time_s > -window_size//5:
+                    break
+
+                patch_end_time = patch_start_time + window_size
+                if patch_end_time > end_time_s:
+                    patch_end_time = end_time_s
+                duration_s = patch_end_time - patch_start_time
+
+                print(f"Segment patch {at_patch}")
+                print(f'start_time: {patch_start_time}, duration: {duration_s}, ins: {patch_start_time}')
+
+                out_text += '-' * 90 + '\n'
+                out_text += f'Segment patch : {at_patch}\n'
+                out_text += f'Patch start   : {int(patch_start_time//60)}m {patch_start_time%60:.2f}s\n'
+                out_text += f'Patch duration: {int(duration_s//60)}m {duration_s%60:.2f}s\n'
+                if emo_classifier == EmoClassifier.SPEECH2EMO:
+                    seg_emos, seg_scores = Speech2Emo.predict_emotion(
+                        audio_path=file,
+                        start_time=patch_start_time,
+                        duration=duration_s,
+                        model=model,
+                        feature_extractor=feature_extractor,
+                        labels=labels
+                    )
+                elif emo_classifier == EmoClassifier.EMO2VEC:
+                    seg_emos, seg_scores = Emo2Vec.process_file(audio_path=file,
+                                                                start_time=start_time_s,
+                                                                duration=duration_s,
+                                                                model=model)
+                else:
+                    raise ValueError(f"Invalid option for emo_classifier: {emo_classifier}")
+
+                out_text += "Emotions     : "
+                if b_print_all_emos:
+                    for idx_emo, _emo in enumerate(seg_emos):
+                        if idx_emo > 0:
+                            print(f" -- ", end='')
+                            out_text += f" -- "
+                        print(f"{_emo}", end='')
+                        out_text += f"{_emo}"
+                        if b_print_emo_probs:
+                            print(f" [{100*seg_scores[idx_emo]:.1f}%]", end='')
+                            out_text += f" [{100*seg_scores[idx_emo]:.1f}%]"
+                out_text += '\n'
+                print('\n\n')
 
         # Write output to file
         out_file = os.path.splitext(file)[0] + '_emo.txt'
@@ -226,6 +291,10 @@ if __name__ == '__main__':
     # Process a single file
     if True:
         Processor.process_file(file=_file_nl,
+                               b_print_all_emos=True,
+                               b_print_emo_probs=True,
+                               window_size=60,
+                               window_stride=20,
                                emo_classifier=EmoClassifier.EMO2VEC,
                                language=Language.NL)
 
@@ -233,4 +302,9 @@ if __name__ == '__main__':
     if False:
         Processor.process_folder(folder=os.path.join(Config.DIR_DATA, 'Dutch Recordings'),
                                  file_ext='mp3',
+                                 b_print_all_emos=True,
+                                 b_print_emo_probs=True,
+                                 window_size=60,
+                                 window_stride=20,
+                                 emo_classifier=EmoClassifier.EMO2VEC,
                                  language=Language.NL)
