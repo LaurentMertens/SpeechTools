@@ -1,0 +1,48 @@
+[build-system]
+requires      = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ['speech_transcription', 'whisper_diarization']
+
+[tool.setuptools.dynamic]
+version = {attr = "speech_transcription.VERSION"}
+readme = {file = ["README.md"]}
+
+[project]
+name = "SpeechTools"
+version = "1.0.0"
+description = "A tool to extract emotions from audio."
+readme = "README.md"
+authors = [{ name = "Laurent Mertens", email = "contact@laurentmertens.com" }]
+maintainers = [{ name = "Laurent Mertens", email = "contact@laurentmertens.com" }]
+license = 'MIT'
+license-files = ["LICENSE.md"]
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["Audio Processing", "Emotion Detection"]
+dependencies = [
+    'lortools',
+    'nemo_toolkit[asr]>=2.3.0',
+    'nltk',
+    'faster-whisper>=1.1.0',
+    'demucs@git+https://github.com/MahmoudAshraf97/demucs.git',
+    'deepmultilingualpunctuation@git+https://github.com/oliverguhr/deepmultilingualpunctuation.git',
+    'ctc-forced-aligner@git+https://github.com/MahmoudAshraf97/ctc-forced-aligner.git',
+    'onnxruntime',
+    'torchaudio',
+    'transformers',
+    # emo classification with Speech2Emo
+    'librosa',
+    # emo classification with Emotion2Vec
+    'funasr'
+]
+requires-python = ">=3.9"
+
+[project.urls]
+Homepage = "https://github.com/LaurentMertens/SpeechTools"
+Changelog = "https://github.com/LaurentMertens/SpeechTools/blob/master/CHANGELOG.md"
+
+[project.scripts]
